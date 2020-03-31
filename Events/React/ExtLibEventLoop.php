@@ -11,12 +11,17 @@
  * @link      http://www.workerman.net/
  * @license   http://www.opensource.org/licenses/mit-license.php MIT License
  */
-namespace Workerman\Lib;
+namespace Workerman\Events\React;
+use Workerman\Events\EventInterface;
 
 /**
- * Do not use Workerman\Lib\Timer.
- * Please use Workerman\Timer.
- * This class is only used for compatibility with workerman 3.*
- * @package Workerman\Lib
+ * Class ExtLibEventLoop
+ * @package Workerman\Events\React
  */
-class Timer extends \Workerman\Timer {}
+class ExtLibEventLoop extends Base
+{
+    public function __construct()
+    {
+        $this->_eventLoop = new \React\EventLoop\ExtLibeventLoop();
+    }
+}

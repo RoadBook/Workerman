@@ -1,7 +1,21 @@
 # Workerman
+[![Gitter](https://badges.gitter.im/walkor/Workerman.svg)](https://gitter.im/walkor/Workerman?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=body_badge)
+[![Latest Stable Version](https://poser.pugx.org/workerman/workerman/v/stable)](https://packagist.org/packages/workerman/workerman)
+[![Total Downloads](https://poser.pugx.org/workerman/workerman/downloads)](https://packagist.org/packages/workerman/workerman)
+[![Monthly Downloads](https://poser.pugx.org/workerman/workerman/d/monthly)](https://packagist.org/packages/workerman/workerman)
+[![Daily Downloads](https://poser.pugx.org/workerman/workerman/d/daily)](https://packagist.org/packages/workerman/workerman)
+[![License](https://poser.pugx.org/workerman/workerman/license)](https://packagist.org/packages/workerman/workerman)
 
 ## What is it
-Workerman is a library for event-driven programming in PHP. It has a huge number of features. Each worker is able to handle thousands of connections.
+Workerman is an asynchronous event-driven PHP framework with high performance to build fast and scalable network applications. 
+Workerman supports HTTP, Websocket, SSL and other custom protocols. 
+Workerman supports event extension.
+
+## Requires
+PHP 5.3 or Higher  
+A POSIX compatible operating system (Linux, OSX, BSD)  
+POSIX and PCNTL extensions required   
+Event extension recommended for better performance  
 
 ## Installation
 
@@ -12,34 +26,32 @@ composer require workerman/workerman
 ## Basic Usage
 
 ### A websocket server 
-test.php
 ```php
 <?php
+
 use Workerman\Worker;
-require_once './Workerman/Autoloader.php';
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 // Create a Websocket server
-$ws_worker = new Worker("websocket://0.0.0.0:2346");
+$ws_worker = new Worker('websocket://0.0.0.0:2346');
 
 // 4 processes
 $ws_worker->count = 4;
 
 // Emitted when new connection come
-$ws_worker->onConnect = function($connection)
-{
+$ws_worker->onConnect = function ($connection) {
     echo "New connection\n";
- };
+};
 
 // Emitted when data received
-$ws_worker->onMessage = function($connection, $data)
-{
+$ws_worker->onMessage = function ($connection, $data) {
     // Send hello $data
-    $connection->send('hello ' . $data);
+    $connection->send('Hello ' . $data);
 };
 
 // Emitted when connection closed
-$ws_worker->onClose = function($connection)
-{
+$ws_worker->onClose = function ($connection) {
     echo "Connection closed\n";
 };
 
@@ -47,79 +59,95 @@ $ws_worker->onClose = function($connection)
 Worker::runAll();
 ```
 
-### A http server
-test.php
+### An http server
 ```php
-require_once './Workerman/Autoloader.php';
 use Workerman\Worker;
 
+require_once __DIR__ . '/vendor/autoload.php';
+
 // #### http worker ####
-$http_worker = new Worker("http://0.0.0.0:2345");
+$http_worker = new Worker('http://0.0.0.0:2345');
 
 // 4 processes
 $http_worker->count = 4;
 
 // Emitted when data received
-$http_worker->onMessage = function($connection, $data)
-{
-    // $_GET, $_POST, $_COOKIE, $_SESSION, $_SERVER, $_FILES are available
-    var_dump($_GET, $_POST, $_COOKIE, $_SESSION, $_SERVER, $_FILES);
-    // send data to client
-    $connection->send("hello world \n");
+$http_worker->onMessage = function ($connection, $request) {
+    //$request->get();
+    //$request->post();
+    //$request->header();
+    //$request->cookie();
+    //$requset->session();
+    //$request->uri();
+    //$request->path();
+    //$request->method();
+
+    // Send data to client
+    $connection->send("Hello World");
 };
 
-// run all workers
-Worker::runAll();
-```
-
-### A WebServer
-test.php
-```php
-require_once './Workerman/Autoloader.php';
-use \Workerman\WebServer;
-
-// WebServer
-$web = new WebServer("http://0.0.0.0:80");
-
-// 4 processes
-$web->count = 4;
-
-// Set the root of domains
-$web->addRoot('www.your_domain.com', '/your/path/Web');
-$web->addRoot('www.another_domain.com', '/another/path/Web');
-// run all workers
+// Run all workers
 Worker::runAll();
 ```
 
 ### A tcp server
-test.php
 ```php
-require_once './Workerman/Autoloader.php';
 use Workerman\Worker;
 
+require_once __DIR__ . '/vendor/autoload.php';
+
 // #### create socket and listen 1234 port ####
-$tcp_worker = new Worker("tcp://0.0.0.0:1234");
+$tcp_worker = new Worker('tcp://0.0.0.0:1234');
 
 // 4 processes
 $tcp_worker->count = 4;
 
 // Emitted when new connection come
-$tcp_worker->onConnect = function($connection)
-{
+$tcp_worker->onConnect = function ($connection) {
     echo "New Connection\n";
 };
 
 // Emitted when data received
-$tcp_worker->onMessage = function($connection, $data)
-{
-    // send data to client
-    $connection->send("hello $data \n");
+$tcp_worker->onMessage = function ($connection, $data) {
+    // Send data to client
+    $connection->send("Hello $data \n");
 };
 
 // Emitted when new connection come
-$tcp_worker->onClose($connection)
-{
+$tcp_worker->onClose = function ($connection) {
     echo "Connection closed\n";
+};
+
+Worker::runAll();
+```
+
+### Enable SSL
+```php
+<?php
+
+use Workerman\Worker;
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+// SSL context.
+$context = array(
+    'ssl' => array(
+        'local_cert'  => '/your/path/of/server.pem',
+        'local_pk'    => '/your/path/of/server.key',
+        'verify_peer' => false,
+    )
+);
+
+// Create a Websocket server with ssl context.
+$ws_worker = new Worker('websocket://0.0.0.0:2346', $context);
+
+// Enable SSL. WebSocket+SSL means that Secure WebSocket (wss://). 
+// The similar approaches for Https etc.
+$ws_worker->transport = 'ssl';
+
+$ws_worker->onMessage = function ($connection, $data) {
+    // Send hello $data
+    $connection->send('Hello ' . $data);
 };
 
 Worker::runAll();
@@ -128,7 +156,9 @@ Worker::runAll();
 ### Custom protocol
 Protocols/MyTextProtocol.php
 ```php
+
 namespace Protocols;
+
 /**
  * User defined protocol
  * Format Text+"\n"
@@ -139,11 +169,12 @@ class MyTextProtocol
     {
         // Find the position of the first occurrence of "\n"
         $pos = strpos($recv_buffer, "\n");
+
         // Not a complete package. Return 0 because the length of package can not be calculated
-        if($pos === false)
-        {
+        if ($pos === false) {
             return 0;
         }
+
         // Return length of the package
         return $pos+1;
     }
@@ -155,82 +186,105 @@ class MyTextProtocol
 
     public static function encode($data)
     {
-        return $data."\n";
+        return $data . "\n";
     }
 }
 ```
 
-test.php
 ```php
-require_once './Workerman/Autoloader.php';
-use Workerman\Worker
+use Workerman\Worker;
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 // #### MyTextProtocol worker ####
-$text_worker = new Worker("MyTextProtocol://0.0.0.0:5678");
+$text_worker = new Worker('MyTextProtocol://0.0.0.0:5678');
 
-$text_worker->onConnect = function($connection)
-{
+$text_worker->onConnect = function ($connection) {
     echo "New connection\n";
 };
 
-$text_worker->onMessage =  function($connection, $data)
-{
-    // send data to client
-    $connection->send("hello world \n");
+$text_worker->onMessage = function ($connection, $data) {
+    // Send data to client
+    $connection->send("Hello world\n");
 };
 
-$text_worker->onClose = function($connection)
-{
+$text_worker->onClose = function ($connection) {
     echo "Connection closed\n";
 };
 
-// run all workers
+// Run all workers
 Worker::runAll();
 ```
 
 ### Timer
-test.php
 ```php
-require_once './Workerman/Autoloader.php';
+
 use Workerman\Worker;
-use Workerman\Lib\Timer;
+use Workerman\Timer;
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 $task = new Worker();
-$task->onWorkerStart = function($task)
-{
+$task->onWorkerStart = function ($task) {
     // 2.5 seconds
     $time_interval = 2.5; 
-    $timer_id = Timer::add($time_interval, 
-        function()
-        {
-            echo "Timer run\n";
-        }
-    );
+    $timer_id = Timer::add($time_interval, function () {
+        echo "Timer run\n";
+    });
 };
 
-// run all workers
+// Run all workers
 Worker::runAll();
 ```
 
-run width
+### AsyncTcpConnection (tcp/ws/text/frame etc...)
+```php
 
-```php test.php start```
+use Workerman\Worker;
+use Workerman\Connection\AsyncTcpConnection;
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+$worker = new Worker();
+$worker->onWorkerStart = function () {
+    // Websocket protocol for client.
+    $ws_connection = new AsyncTcpConnection('ws://echo.websocket.org:80');
+    $ws_connection->onConnect = function ($connection) {
+        $connection->send('Hello');
+    };
+    $ws_connection->onMessage = function ($connection, $data) {
+        echo "Recv: $data\n";
+    };
+    $ws_connection->onError = function ($connection, $code, $msg) {
+        echo "Error: $msg\n";
+    };
+    $ws_connection->onClose = function ($connection) {
+        echo "Connection closed\n";
+    };
+    $ws_connection->connect();
+};
+
+Worker::runAll();
+```
+
+
 
 ## Available commands
-```php test.php start  ```  
-```php test.php start -d  ```  
+```php start.php start  ```  
+```php start.php start -d  ```  
 ![workerman start](http://www.workerman.net/img/workerman-start.png)  
-```php test.php status  ```  
-![workerman satus](http://www.workerman.net/img/workerman-status.png?a=123)
-```php test.php stop  ```  
-```php test.php restart  ```  
-```php test.php reload  ```  
+```php start.php status  ```  
+![workerman satus](http://www.workerman.net/img/workerman-status.png?a=123)  
+```php start.php connections```  
+```php start.php stop  ```  
+```php start.php restart  ```  
+```php start.php reload  ```  
 
 ## Documentation
 
 中文主页:[http://www.workerman.net](http://www.workerman.net)
 
-中文文档: [http://doc3.workerman.net](http://doc3.workerman.net)
+中文文档: [http://doc.workerman.net](http://doc.workerman.net)
 
 Documentation:[https://github.com/walkor/workerman-manual](https://github.com/walkor/workerman-manual/blob/master/english/src/SUMMARY.md)
 
@@ -247,12 +301,13 @@ PHP:      5.5.9
 ```php
 <?php
 use Workerman\Worker;
+
 $worker = new Worker('tcp://0.0.0.0:1234');
-$worker->count=3;
-$worker->onMessage = function($connection, $data)
-{
-    $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\1.1.4\r\n\r\nhello");
+$worker->count = 3;
+$worker->onMessage = function ($connection, $data) {
+    $connection->send("HTTP/1.1 200 OK\r\nConnection: keep-alive\r\nServer: workerman\r\nContent-Length: 5\r\n\r\nhello");
 };
+
 Worker::runAll();
 ```
 **Result**
@@ -317,70 +372,14 @@ Percentage of the requests served within a certain time (ms)
 ```
 
 
-# Demos
+## Other links with workerman
 
-## [tadpole](http://kedou.workerman.net/)  
-[Live demo](http://kedou.workerman.net/)  
-[Source code](https://github.com/walkor/workerman)  
-![workerman todpole](http://www.workerman.net/img/workerman-todpole.png)  
+[PHPSocket.IO](https://github.com/walkor/phpsocket.io)   
+[php-socks5](https://github.com/walkor/php-socks5)  
+[php-http-proxy](https://github.com/walkor/php-http-proxy)  
 
-## [BrowserQuest](http://browserquest.workerman.net/)   
-[Live demo](http://browserquest.workerman.net/)  
-[Source code](https://github.com/walkor/BrowserQuest-PHP)  
-![BrowserQuest width workerman](http://www.workerman.net/img/browserquest.jpg) 
-
-## [web vmstat](http://vmstat.workerman.net/)   
-[Live demo](http://vmstat.workerman.net/)  
-[Source code](https://github.com/walkor/workerman-vmstat)  
-![web vmstat](http://www.workerman.net/img/workerman-vmstat.png)   
-
-## [live-ascii-camera](https://github.com/walkor/live-ascii-camera)   
-[Live demo camera page](http://live-ascii-camera.workerman.net/camera.html)  
-[Live demo receive page](http://live-ascii-camera.workerman.net/)  
-[Source code](https://github.com/walkor/live-ascii-camera)  
-![live-ascii-camera](http://www.workerman.net/img/live-ascii-camera.png)   
-
-## [live-camera](https://github.com/walkor/live-camera)   
-[Live demo camera page](http://live-camera.workerman.net/camera.html)  
-[Live demo receive page](http://live-camera.workerman.net/)  
-[Source code](https://github.com/walkor/live-camera)  
-![live-camera](http://www.workerman.net/img/live-camera.jpg)  
-
-## [chat room](http://chat.workerman.net/)  
-[Live demo](http://chat.workerman.net/)  
-[Source code](https://github.com/walkor/workerman-chat)  
-![workerman-chat](http://www.workerman.net/img/workerman-chat.png)  
-
-## [statistics](http://monitor.workerman.net/)  
-[Live demo](http://monitor.workerman.net/)  
-[Source code](https://github.com/walkor/workerman-statistics)  
-![workerman-statistics](http://www.workerman.net/img/workerman-statistics.png)  
-
-## [flappybird](http://flap.workerman.net/)  
-[Live demo](http://flap.workerman.net/)  
-[Source code](https://github.com/walkor/workerman-flappy-bird)  
-![workerman-statistics](http://www.workerman.net/img/workerman-flappy-bird.png)  
-
-## [jsonRpc](https://github.com/walkor/workerman-JsonRpc)  
-[Source code](https://github.com/walkor/workerman-JsonRpc)  
-![workerman-jsonRpc](http://www.workerman.net/img/workerman-json-rpc.png)  
-
-## [thriftRpc](https://github.com/walkor/workerman-thrift)  
-[Source code](https://github.com/walkor/workerman-thrift)  
-![workerman-thriftRpc](http://www.workerman.net/img/workerman-thrift.png)  
-
-## [web-msg-sender](https://github.com/walkor/web-msg-sender)  
-[Live demo send page](http://workerman.net:3333/)  
-[Live demo receive page](http://workerman.net/web-msg-sender.html)  
-[Source code](https://github.com/walkor/web-msg-sender)  
-![web-msg-sender](http://www.workerman.net/img/web-msg-sender.png)  
-
-## [shadowsocks-php](https://github.com/walkor/shadowsocks-php)
-[Source code](https://github.com/walkor/shadowsocks-php)  
-![shadowsocks-php](http://www.workerman.net/img/shadowsocks-php.png)  
-
-## [queue](https://github.com/walkor/workerman-queue)
-[Source code](https://github.com/walkor/workerman-queue)  
+## Donate
+<a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UQGGS9UB35WWG"><img src="http://donate.workerman.net/img/donate.png"></a>
 
 ## LICENSE
 

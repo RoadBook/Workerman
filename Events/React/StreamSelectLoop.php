@@ -11,12 +11,16 @@
  * @link      http://www.workerman.net/
  * @license   http://www.opensource.org/licenses/mit-license.php MIT License
  */
-namespace Workerman\Lib;
+namespace Workerman\Events\React;
 
 /**
- * Do not use Workerman\Lib\Timer.
- * Please use Workerman\Timer.
- * This class is only used for compatibility with workerman 3.*
- * @package Workerman\Lib
+ * Class StreamSelectLoop
+ * @package Workerman\Events\React
  */
-class Timer extends \Workerman\Timer {}
+class StreamSelectLoop extends Base
+{
+    public function __construct()
+    {
+        $this->_eventLoop = new \React\EventLoop\StreamSelectLoop();
+    }
+}
