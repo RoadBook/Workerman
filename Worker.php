@@ -33,7 +33,7 @@ class Worker
      *
      * @var string
      */
-    const VERSION = '4.0.3';
+    const VERSION = '4.0.16';
 
     /**
      * Status starting.
@@ -466,10 +466,8 @@ class Worker
      * @var array
      */
     protected static $_availableEventLoops = array(
-        'libevent' => '\Workerman\Events\Libevent',
-        'event'    => '\Workerman\Events\Event'
-        // Temporarily removed swoole because it is not stable enough
-        //'swoole'   => '\Workerman\Events\Swoole'
+        'event'    => '\Workerman\Events\Event',
+        'libevent' => '\Workerman\Events\Libevent'
     );
 
     /**
@@ -535,13 +533,11 @@ class Worker
     {
         static::checkSapiEnv();
         static::init();
-        static::lock();
         static::parseCommand();
         static::daemonize();
         static::initWorkers();
         static::installSignal();
         static::saveMasterPid();
-        static::unlock();
         static::displayUI();
         static::forkWorkers();
         static::resetStd();
@@ -807,7 +803,14 @@ class Worker
         !empty($content) && static::safeEcho($line_last);
 
         if (static::$daemonize) {
-            static::safeEcho("Input \"php $argv[0] stop\" to stop. Start success.\n\n");
+            foreach ($argv as $index => $value) {
+                if ($value == '-d') {
+                    unset($argv[$index]);
+                } elseif ($value == 'start' || $value == 'restart') {
+                    $argv[$index] = 'stop';
+                }
+            }
+            static::safeEcho("Input \"php ".implode(' ', $argv)."\" to stop. Start success.\n\n");
         } else {
             static::safeEcho("Press Ctrl+C to stop. Start success.\n");
         }
@@ -867,6 +870,7 @@ class Worker
         global $argv;
         // Check argv;
         $start_file = $argv[0];
+        $usage = "Usage: php yourfile <command> [mode]\nCommands: \nstart\t\tStart worker in DEBUG mode.\n\t\tUse mode -d to start in DAEMON mode.\nstop\t\tStop worker.\n\t\tUse mode -g to stop gracefully.\nrestart\t\tRestart workers.\n\t\tUse mode -d to start in DAEMON mode.\n\t\tUse mode -g to stop gracefully.\nreload\t\tReload codes.\n\t\tUse mode -g to reload gracefully.\nstatus\t\tGet worker status.\n\t\tUse mode -d to show live status.\nconnections\tGet worker connections.\n";
         $available_commands = array(
             'start',
             'stop',
@@ -875,28 +879,33 @@ class Worker
             'status',
             'connections',
         );
-        $usage = "Usage: php yourfile <command> [mode]\nCommands: \nstart\t\tStart worker in DEBUG mode.\n\t\tUse mode -d to start in DAEMON mode.\nstop\t\tStop worker.\n\t\tUse mode -g to stop gracefully.\nrestart\t\tRestart workers.\n\t\tUse mode -d to start in DAEMON mode.\n\t\tUse mode -g to stop gracefully.\nreload\t\tReload codes.\n\t\tUse mode -g to reload gracefully.\nstatus\t\tGet worker status.\n\t\tUse mode -d to show live status.\nconnections\tGet worker connections.\n";
-        if (!isset($argv[1]) || !\in_array($argv[1], $available_commands)) {
-            if (isset($argv[1])) {
-                static::safeEcho('Unknown command: ' . $argv[1] . "\n");
+        $available_mode = array(
+            '-d',
+            '-g'
+        );
+        $command = $mode = '';
+        foreach ($argv as $value) {
+            if (\in_array($value, $available_commands)) {
+                $command = $value;
+            } elseif (\in_array($value, $available_mode)) {
+                $mode = $value;
             }
+        }
+
+        if (!$command) {
             exit($usage);
         }
 
-        // Get command.
-        $command  = \trim($argv[1]);
-        $command2 = isset($argv[2]) ? $argv[2] : '';
-
         // Start command.
-        $mode = '';
+        $mode_str = '';
         if ($command === 'start') {
-            if ($command2 === '-d' || static::$daemonize) {
-                $mode = 'in DAEMON mode';
+            if ($mode === '-d' || static::$daemonize) {
+                $mode_str = 'in DAEMON mode';
             } else {
-                $mode = 'in DEBUG mode';
+                $mode_str = 'in DEBUG mode';
             }
         }
-        static::log("Workerman[$start_file] $command $mode");
+        static::log("Workerman[$start_file] $command $mode_str");
 
         // Get master process PID.
         $master_pid      = \is_file(static::$pidFile) ? \file_get_contents(static::$pidFile) : 0;
@@ -915,7 +924,7 @@ class Worker
         // execute command.
         switch ($command) {
             case 'start':
-                if ($command2 === '-d') {
+                if ($mode === '-d') {
                     static::$daemonize = true;
                 }
                 break;
@@ -929,12 +938,12 @@ class Worker
                     // Sleep 1 second.
                     \sleep(1);
                     // Clear terminal.
-                    if ($command2 === '-d') {
+                    if ($mode === '-d') {
                         static::safeEcho("\33[H\33[2J\33(B\33[m", true);
                     }
                     // Echo status data.
                     static::safeEcho(static::formatStatusData());
-                    if ($command2 !== '-d') {
+                    if ($mode !== '-d') {
                         exit(0);
                     }
                     static::safeEcho("\nPress Ctrl+C to quit.\n\n");
@@ -955,9 +964,9 @@ class Worker
                 exit(0);
             case 'restart':
             case 'stop':
-                if ($command2 === '-g') {
+                if ($mode === '-g') {
                     static::$_gracefulStop = true;
-                    $sig = \SIGTERM;
+                    $sig = \SIGHUP;
                     static::log("Workerman[$start_file] is gracefully stopping ...");
                 } else {
                     static::$_gracefulStop = false;
@@ -987,14 +996,14 @@ class Worker
                     if ($command === 'stop') {
                         exit(0);
                     }
-                    if ($command2 === '-d') {
+                    if ($mode === '-d') {
                         static::$daemonize = true;
                     }
                     break;
                 }
                 break;
             case 'reload':
-                if($command2 === '-g'){
+                if($mode === '-g'){
                     $sig = \SIGQUIT;
                 }else{
                     $sig = \SIGUSR1;
@@ -1105,8 +1114,10 @@ class Worker
         $signalHandler = '\Workerman\Worker::signalHandler';
         // stop
         \pcntl_signal(\SIGINT, $signalHandler, false);
-        // graceful stop
+        // stop
         \pcntl_signal(\SIGTERM, $signalHandler, false);
+        // graceful stop
+        \pcntl_signal(\SIGHUP, $signalHandler, false);
         // reload
         \pcntl_signal(\SIGUSR1, $signalHandler, false);
         // graceful reload
@@ -1132,8 +1143,10 @@ class Worker
         $signalHandler = '\Workerman\Worker::signalHandler';
         // uninstall stop signal handler
         \pcntl_signal(\SIGINT, \SIG_IGN, false);
-        // uninstall graceful stop signal handler
+        // uninstall stop signal handler
         \pcntl_signal(\SIGTERM, \SIG_IGN, false);
+        // uninstall graceful stop signal handler
+        \pcntl_signal(\SIGHUP, \SIG_IGN, false);
         // uninstall reload signal handler
         \pcntl_signal(\SIGUSR1, \SIG_IGN, false);
         // uninstall graceful reload signal handler
@@ -1145,7 +1158,7 @@ class Worker
         // reinstall stop signal handler
         static::$globalEvent->add(\SIGINT, EventInterface::EV_SIGNAL, $signalHandler);
         // reinstall graceful stop signal handler
-        static::$globalEvent->add(\SIGTERM, EventInterface::EV_SIGNAL, $signalHandler);
+        static::$globalEvent->add(\SIGHUP, EventInterface::EV_SIGNAL, $signalHandler);
         // reinstall reload signal handler
         static::$globalEvent->add(\SIGUSR1, EventInterface::EV_SIGNAL, $signalHandler);
         // reinstall graceful reload signal handler
@@ -1166,22 +1179,19 @@ class Worker
         switch ($signal) {
             // Stop.
             case \SIGINT:
+            case \SIGTERM:
                 static::$_gracefulStop = false;
                 static::stopAll();
                 break;
             // Graceful stop.
-            case \SIGTERM:
+            case \SIGHUP:
                 static::$_gracefulStop = true;
                 static::stopAll();
                 break;
             // Reload.
             case \SIGQUIT:
             case \SIGUSR1:
-                if($signal === \SIGQUIT){
-                    static::$_gracefulStop = true;
-                }else{
-                    static::$_gracefulStop = false;
-                }
+                static::$_gracefulStop = $signal === \SIGQUIT;
                 static::$_pidsToRestart = static::getAllWorkerPids();
                 static::reload();
                 break;
@@ -1240,8 +1250,12 @@ class Worker
         if ($handle) {
             unset($handle);
             \set_error_handler(function(){});
-            \fclose($STDOUT);
-            \fclose($STDERR);
+            if ($STDOUT) {
+                \fclose($STDOUT);
+            }
+            if ($STDERR) {
+                \fclose($STDERR);
+            }
             \fclose(\STDOUT);
             \fclose(\STDERR);
             $STDOUT = \fopen(static::$stdoutFile, "a");
@@ -1539,6 +1553,9 @@ class Worker
             $worker->setUserAndGroup();
             $worker->id = $id;
             $worker->run();
+            if (strpos(static::$eventLoopClass, 'Workerman\Events\Swoole') !== false) {
+                exit(0);
+            }
             $err = new Exception('event-loop exited');
             static::log($err);
             exit(250);
@@ -1827,7 +1844,7 @@ class Worker
             $worker_pid_array = static::getAllWorkerPids();
             // Send stop signal to all child processes.
             if (static::$_gracefulStop) {
-                $sig = \SIGTERM;
+                $sig = \SIGHUP;
             } else {
                 $sig = \SIGINT;
             }
@@ -1856,7 +1873,12 @@ class Worker
                 if (static::$globalEvent) {
                     static::$globalEvent->destroy();
                 }
-                exit(0);
+
+                try {
+                    exit(0);
+                } catch (Exception $e) {
+
+                }
             }
         }
     }
@@ -2195,7 +2217,7 @@ class Worker
         if (static::$_OS === \OS_TYPE_LINUX  // if linux
             && \version_compare(\PHP_VERSION,'7.0.0', 'ge') // if php >= 7.0.0
             && \strtolower(\php_uname('s')) !== 'darwin' // if not Mac OS
-            && $this->transport !== 'unix') { // if not unix socket
+            && strpos($socket_name,'unix') !== 0) { // if not unix socket
 
             $this->reusePort = true;
         }
@@ -2292,9 +2314,9 @@ class Worker
         // Check application layer protocol class.
         if (!isset(static::$_builtinTransports[$scheme])) {
             $scheme         = \ucfirst($scheme);
-            $this->protocol = \substr($scheme,0,1)==='\\' ? $scheme : '\\Protocols\\' . $scheme;
+            $this->protocol = \substr($scheme,0,1)==='\\' ? $scheme : 'Protocols\\' . $scheme;
             if (!\class_exists($this->protocol)) {
-                $this->protocol = "\\Workerman\\Protocols\\$scheme";
+                $this->protocol = "Workerman\\Protocols\\$scheme";
                 if (!\class_exists($this->protocol)) {
                     throw new Exception("class \\Protocols\\$scheme not exist");
                 }

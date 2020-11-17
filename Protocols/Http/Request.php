@@ -306,6 +306,7 @@ class Request
                     . (empty($cookie_params['domain']) ? '' : '; Domain=' . $cookie_params['domain'])
                     . (empty($cookie_params['lifetime']) ? '' : '; Max-Age=' . ($cookie_params['lifetime'] + \time()))
                     . (empty($cookie_params['path']) ? '' : '; Path=' . $cookie_params['path'])
+                    . (empty($cookie_params['samesite']) ? '' : '; SameSite=' . $cookie_params['samesite'])
                     . (!$cookie_params['secure'] ? '' : '; Secure')
                     . (!$cookie_params['httponly'] ? '' : '; HttpOnly'));
             }
@@ -457,13 +458,17 @@ class Request
             $this->_data['post'] = static::$_postCache[$body_buffer];
             return;
         }
-        $content_type = $this->header('content-type');
-        if ($content_type !== null && \preg_match('/boundary="?(\S+)"?/', $content_type, $match)) {
+        $content_type = $this->header('content-type', '');
+        if (\preg_match('/boundary="?(\S+)"?/', $content_type, $match)) {
             $http_post_boundary = '--' . $match[1];
             $this->parseUploadFiles($http_post_boundary);
             return;
         }
-        \parse_str($body_buffer, $this->_data['post']);
+        if (\preg_match('/\bjson\b/i', $content_type)) {
+            $this->_data['post'] = (array) json_decode($body_buffer, true);
+        } else {
+            \parse_str($body_buffer, $this->_data['post']);
+        }
         if ($cacheable) {
             static::$_postCache[$body_buffer] = $this->_data['post'];
             if (\count(static::$_postCache) > 256) {
@@ -607,6 +612,7 @@ class Request
     public function __destruct()
     {
         if (isset($this->_data['files'])) {
+            \clearstatcache();
             foreach ($this->_data['files'] as $item) {
                 if (\is_file($item['tmp_name'])) {
                     \unlink($item['tmp_name']);
